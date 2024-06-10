@@ -1,73 +1,241 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, {useState} from 'react';
+import {
+  SafeAreaView,
+  TouchableOpacity,
+  Text,
+  TextInput,
+  View,
+  FlatList,
+} from "react-native";
 import RootLayout from '@/app/_layout';
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { registerRootComponent } from 'expo';
+import {
+  MeetingProvider,
+  useMeeting,
+  useParticipant,
+  MediaStream,
+  RTCView,
+} from "@videosdk.live/react-native-sdk";
+import { createMeeting, token } from "@/api";
 
 registerRootComponent(RootLayout);
 
-export default function HomeScreen() {
+const Button = ({ onPress, buttonText, backgroundColor }) => {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        backgroundColor: backgroundColor,
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        borderRadius: 4,
+      }}
+    >
+      <Text style={{ color: "white", fontSize: 12 }}>{buttonText}</Text>
+    </TouchableOpacity>
+  );
+};
+
+function JoinScreen(props) {
+  const [meetingVal, setMeetingVal] = useState("");
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: "#F6F6FF",
+        justifyContent: "center",
+        paddingHorizontal: 6 * 10,
+      }}
+    >
+      <TouchableOpacity
+        onPress={() => {
+          props.getMeetingId();
+        }}
+        style={{ backgroundColor: "#1178F8", padding: 12, borderRadius: 6 }}
+      >
+        <Text style={{ color: "white", alignSelf: "center", fontSize: 18 }}>
+          Create Meeting
+        </Text>
+      </TouchableOpacity>
+
+      <Text
+        style={{
+          alignSelf: "center",
+          fontSize: 22,
+          marginVertical: 16,
+          fontStyle: "italic",
+          color: "grey",
+        }}
+      >
+        ---------- OR ----------
+      </Text>
+      <TextInput
+        value={meetingVal}
+        onChangeText={setMeetingVal}
+        placeholder={"XXXX-XXXX-XXXX"}
+        style={{
+          padding: 12,
+          borderWidth: 1,
+          borderRadius: 6,
+          fontStyle: "italic",
+        }}
+      />
+      <TouchableOpacity
+        style={{
+          backgroundColor: "#1178F8",
+          padding: 12,
+          marginTop: 14,
+          borderRadius: 6,
+        }}
+        onPress={() => {
+          props.getMeetingId(meetingVal);
+        }}
+      >
+        <Text style={{ color: "white", alignSelf: "center", fontSize: 18 }}>
+          Join Meeting
+        </Text>
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+function ControlsContainer({ join, leave, toggleWebcam, toggleMic }) {
+  return (
+    <View
+      style={{
+        padding: 24,
+        flexDirection: "row",
+        justifyContent: "space-between",
+      }}
+    >
+      <Button
+        onPress={() => {
+          join();
+        }}
+        buttonText={"Join"}
+        backgroundColor={"#1178F8"}
+      />
+      <Button
+        onPress={() => {
+          toggleWebcam();
+        }}
+        buttonText={"Toggle Webcam"}
+        backgroundColor={"#1178F8"}
+      />
+      <Button
+        onPress={() => {
+          toggleMic();
+        }}
+        buttonText={"Toggle Mic"}
+        backgroundColor={"#1178F8"}
+      />
+      <Button
+        onPress={() => {
+          leave();
+        }}
+        buttonText={"Leave"}
+        backgroundColor={"#FF0000"}
+      />
+    </View>
+  );
+}
+
+function MeetingView() {
+  // Get `participants` from useMeeting Hook
+  const { join, leave, toggleWebcam, toggleMic, participants } = useMeeting({});
+  const participantsArrId = [...participants.keys()];
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ParticipantList participants={participantsArrId} />
+      <ControlsContainer
+        join={join}
+        leave={leave}
+        toggleWebcam={toggleWebcam}
+        toggleMic={toggleMic}
+      />
+    </View>
+  );
+}
+
+function ParticipantView({ participantId }) {
+  const { webcamStream, webcamOn } = useParticipant(participantId);
+
+  return webcamOn && webcamStream ? (
+    <RTCView
+      streamURL={new MediaStream([webcamStream.track]).toURL()}
+      objectFit={"cover"}
+      style={{
+        height: 300,
+        marginVertical: 8,
+        marginHorizontal: 8,
+      }}
+    />
+  ) : (
+    <View
+      style={{
+        backgroundColor: "grey",
+        height: 300,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ fontSize: 16 }}>NO MEDIA</Text>
+    </View>
+  );
+}
+
+function ParticipantList({ participants }) {
+  return participants.length > 0 ? (
+    <FlatList
+      data={participants}
+      renderItem={({ item }) => {
+        return <ParticipantView participantId={item} />;
+      }}
+    />
+  ) : (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#F6F6FF",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ fontSize: 20 }}>Press Join button to enter meeting.</Text>
+    </View>
+  );
+}
+
+
+export default function App() {
+  const [meetingId, setMeetingId] = useState(null);
+
+  const getMeetingId = async (id) => {
+    const meetingId = id == null ? await createMeeting({ token }) : id;
+    setMeetingId(meetingId);
+  };
+
+  return meetingId ? (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F6FF" }}>
+      <MeetingProvider
+        config={{
+          meetingId,
+          micEnabled: false,
+          webcamEnabled: true,
+          name: "Test User",
+        }}
+        token={token}
+      >
+        <MeetingView />
+      </MeetingProvider>
+    </SafeAreaView>
+  ) : (
+    <JoinScreen getMeetingId={getMeetingId} />
+  );
+}
